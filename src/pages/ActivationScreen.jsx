@@ -9,15 +9,24 @@ export default function ActivationScreen({ onActivated }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    window.api.getMachineId()
-      .then(res => {
-        if (res && res.success) setMachineId(res.machineId || '');
-        else setError('Machine ID could not be loaded.');
-      })
-      .catch(() => setError('Error loading Machine ID.'))
-      .finally(() => setLoading(false));
-  }, []);
+  const loadMachineId = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await window.api.getMachineId();
+      if (res && res.success && res.machineId) {
+        setMachineId(res.machineId);
+      } else {
+        setError(res?.error || 'Machine ID load nahi ho saka. Retry karein.');
+      }
+    } catch (err) {
+      setError('Machine ID load me error: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadMachineId(); }, []);
 
   const handleCopy = () => {
     if (!machineId) return;
@@ -41,7 +50,7 @@ export default function ActivationScreen({ onActivated }) {
       const result = await window.api.licenseActivate(licenseKey.trim());
       
       if (result.success) {
-        setSuccess('✅ License activated successfully! Redirecting to dashboard...');
+        setSuccess('License activated successfully! Redirecting...');
         setTimeout(() => {
           if (onActivated) onActivated();
         }, 2000);
@@ -68,7 +77,7 @@ export default function ActivationScreen({ onActivated }) {
             PrintShop Billing
           </h1>
           <p className="text-lg text-[#d32f2f] font-semibold">
-            ❌ Software Not Activated
+            Software Not Activated
           </p>
         </div>
 
@@ -76,7 +85,7 @@ export default function ActivationScreen({ onActivated }) {
         {loading && (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#1f3a8a] border-t-transparent"></div>
-            <p className="mt-4 text-[#1f3a8a]/70">Loading...</p>
+            <p className="mt-4 text-[#1f3a8a]/70">Loading Machine ID...</p>
           </div>
         )}
 
@@ -86,31 +95,43 @@ export default function ActivationScreen({ onActivated }) {
             {/* Machine ID Section */}
             <div className="mb-6">
               <label className="block text-sm font-semibold text-[#1f3a8a] mb-2">
-                Machine ID:
+                Your Machine ID:
               </label>
-              <div className="bg-[#f8f9fa] border-2 border-[#1f3a8a]/20 rounded-xl p-4 font-mono text-sm text-[#1f3a8a] break-all mb-2">
-                {machineId || '—'}
+              <div className="bg-[#f8f9fa] border-2 border-[#1f3a8a]/20 rounded-xl p-4 font-mono text-sm text-[#1f3a8a] break-all mb-2 min-h-[60px] flex items-center">
+                {machineId ? (
+                  <span className="select-all">{machineId}</span>
+                ) : (
+                  <span className="text-red-500 text-center w-full">Machine ID not available</span>
+                )}
               </div>
-              <button
-                onClick={handleCopy}
-                disabled={!machineId}
-                className="w-full py-3 rounded-xl bg-[#1f3a8a] text-white font-semibold hover:bg-[#2d4fa0] transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {copied ? '✅ Copied!' : '📋 Copy Machine ID'}
-              </button>
+              {machineId ? (
+                <button
+                  onClick={handleCopy}
+                  className="w-full py-3 rounded-xl bg-[#1f3a8a] text-white font-semibold hover:bg-[#2d4fa0] transition"
+                >
+                  {copied ? 'Copied!' : 'Copy Machine ID'}
+                </button>
+              ) : (
+                <button
+                  onClick={loadMachineId}
+                  className="w-full py-3 rounded-xl bg-[#d32f2f] text-white font-semibold hover:bg-[#b71c1c] transition"
+                >
+                  Retry Loading Machine ID
+                </button>
+              )}
             </div>
 
             {/* Instructions */}
             <div className="bg-[rgba(31,58,138,0.05)] border border-[rgba(31,58,138,0.15)] rounded-xl p-4 mb-6">
               <p className="text-sm text-[#1f3a8a]/80 mb-2">
-                <strong>📱 What to do next:</strong>
+                <strong>Next Steps:</strong>
               </p>
               <ol className="text-sm text-[#1f3a8a]/70 space-y-1 ml-4 list-decimal">
-                <li>Copy the Machine ID above</li>
-                <li>Send it to us via WhatsApp</li>
-                <li>We'll generate your license key</li>
-                <li>Paste the license key below</li>
-                <li>Click "Activate" button</li>
+                <li>Upar Machine ID copy karein</li>
+                <li>Software provider ko WhatsApp pe bhejein</li>
+                <li>Provider aapko license key dega</li>
+                <li>Neeche license key paste karein</li>
+                <li>"Activate Software" button click karein</li>
               </ol>
             </div>
 
@@ -132,18 +153,14 @@ export default function ActivationScreen({ onActivated }) {
             {/* Error Message */}
             {error && (
               <div className="bg-[#fee] border-2 border-[#d32f2f] rounded-xl p-4 mb-6">
-                <p className="text-sm text-[#d32f2f] font-semibold">
-                  ❌ {error}
-                </p>
+                <p className="text-sm text-[#d32f2f] font-semibold">{error}</p>
               </div>
             )}
 
             {/* Success Message */}
             {success && (
               <div className="bg-[#e8f5e9] border-2 border-[#2e7d32] rounded-xl p-4 mb-6">
-                <p className="text-sm text-[#2e7d32] font-semibold">
-                  {success}
-                </p>
+                <p className="text-sm text-[#2e7d32] font-semibold">{success}</p>
               </div>
             )}
 
@@ -153,7 +170,7 @@ export default function ActivationScreen({ onActivated }) {
               disabled={activating || !licenseKey.trim()}
               className="w-full py-4 rounded-xl bg-gradient-to-r from-[#2e7d32] to-[#388e3c] text-white font-bold text-lg hover:from-[#388e3c] hover:to-[#43a047] transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
-              {activating ? '⏳ Activating...' : '✅ Activate Software'}
+              {activating ? 'Activating...' : 'Activate Software'}
             </button>
 
             {/* Footer */}

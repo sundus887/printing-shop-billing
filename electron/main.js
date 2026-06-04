@@ -332,12 +332,33 @@ async function writeConfig(cfg){
 }
 function getMachineIdCached(cfg){
   if (cfg && cfg.machineId) return cfg.machineId;
+  // Try node-machine-id with timeout protection
   try {
     const mod = require('node-machine-id');
-    if (mod && typeof mod.machineIdSync === 'function') return mod.machineIdSync(true);
-    if (mod && typeof mod.machineId === 'function'){ try { return mod.machineId(true); } catch {} }
+    if (mod && typeof mod.machineIdSync === 'function') {
+      try { return mod.machineIdSync(true); } catch {}
+    }
+    if (mod && typeof mod.machineId === 'function') {
+      try { return mod.machineId(true); } catch {}
+    }
   } catch {}
-  return 'FALLBACK-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // Fallback: Try WMIC directly
+  try {
+    const { execSync } = require('child_process');
+    const uuid = execSync('wmic csproduct get UUID', { timeout: 5000, encoding: 'utf-8' })
+      .split('\n').map(l => l.trim()).filter(l => l && l !== 'UUID')[0];
+    if (uuid && uuid.length > 5) return uuid;
+  } catch {}
+  // Fallback: Try registry
+  try {
+    const { execSync } = require('child_process');
+    const reg = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', { timeout: 5000, encoding: 'utf-8' });
+    const match = reg.match(/MachineGuid\s+REG_SZ\s+(.+)/);
+    if (match && match[1]) return match[1].trim();
+  } catch {}
+  // Final fallback: generate from hostname + timestamp
+  const os = require('os');
+  return 'MACHINE-' + (os.hostname() || 'UNKNOWN').toUpperCase().replace(/[^A-Z0-9]/g,'') + '-' + Date.now().toString(36);
 }
 async function verifyLicense(key, machineId){
   if (!key) return { valid:false };
@@ -784,7 +805,13 @@ ipcMain.handle('shopProfile:save', async (e, payload)=>{
 ipcMain.handle('system:getMachineId', async () => {
   try {
     const cfg = await readConfig();
-    return { success: true, machineId: getMachineIdCached(cfg) };
+    // Add timeout to prevent hanging
+    const idPromise = Promise.resolve(getMachineIdCached(cfg));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 10000));
+    const machineId = await Promise.race([idPromise, timeoutPromise]);
+    // Cache it for next time
+    if (cfg.machineId !== machineId) { cfg.machineId = machineId; await writeConfig(cfg); }
+    return { success: true, machineId };
   } catch (err) { return { success: false, error: String(err && err.message || err) }; }
 });
 
