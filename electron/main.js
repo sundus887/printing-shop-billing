@@ -523,6 +523,13 @@ async function activateLocalLicense(licensePayload) {
 }
 
 async function promptAndActivateLocalLicense() {
+  // Get machine ID to show on the activation screen
+  let mid = '';
+  try {
+    const cfg = await readConfig();
+    mid = getMachineIdCached(cfg);
+  } catch {}
+
   return await new Promise((resolve) => {
     let modal;
     const cleanup = () => {
@@ -531,17 +538,14 @@ async function promptAndActivateLocalLicense() {
       try { if (modal && !modal.isDestroyed()) modal.close(); } catch {}
     };
     ipcMain.handle('localLicense:submit', async (e, payload) => {
-      console.log('[LICENSE SUBMIT] payload type:', typeof payload);
-      console.log('[LICENSE SUBMIT] payload length:', typeof payload === 'string' ? payload.length : JSON.stringify(payload).length);
       await ensureNotLocked();
       const result = await activateLocalLicense(payload);
-      console.log('[LICENSE SUBMIT] result:', JSON.stringify(result));
       if (result.ok) { cleanup(); resolve(true); return { ok: true }; }
       return { ok: false, error: result.error || 'ACTIVATION_FAILED' };
     });
     ipcMain.handle('localLicense:cancel', async () => { cleanup(); resolve(false); return { ok: true }; });
     modal = new BrowserWindow({
-      width: 680, height: 520, resizable: true, minimizable: true, maximizable: true, modal: true, show: true,
+      width: 720, height: 680, resizable: true, minimizable: false, maximizable: false, modal: false, show: true,
       webPreferences: {
         contextIsolation: true, nodeIntegration: false, sandbox: true, devTools: !IS_PROD,
         preload: app.isPackaged
@@ -551,7 +555,85 @@ async function promptAndActivateLocalLicense() {
     });
     if (IS_PROD) { modal.webContents.on('devtools-opened', () => { modal.webContents.closeDevTools(); }); }
     modal.on('closed', () => { cleanup(); resolve(false); });
-    const html = `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>License Activation</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:20px;background:#0b1220;color:#e5e7eb}h1{font-size:18px;margin:0 0 10px 0}p{margin:0 0 16px 0;color:#cbd5e1;font-size:13px;line-height:1.4}textarea{width:100%;min-height:120px;padding:12px 10px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e5e7eb;font-size:12px;outline:none;resize:vertical;white-space:pre;}.row{display:flex;gap:10px;margin-top:14px}button{flex:1;padding:10px;border-radius:10px;border:1px solid #334155;background:#111827;color:#e5e7eb;font-size:14px;cursor:pointer}button.primary{background:#2563eb;border-color:#2563eb}.error{margin-top:10px;color:#fca5a5;font-size:12px;min-height:16px}</style></head><body><h1>Activate License</h1><p>Paste the signed license JSON provided by the vendor. This installation is bound to this computer.</p><textarea id="key" placeholder='{"shopName":"","machineId":"","validTill":"2026-12-31T23:59:59.999Z","planMonths":12,"signature":"..."}' autofocus></textarea><div class="row"><button id="cancel">Cancel</button><button class="primary" id="activate">Activate</button></div><div class="error" id="err"></div><script>const keyEl=document.getElementById('key');const errEl=document.getElementById('err');document.getElementById('cancel').addEventListener('click',()=>window.license.cancel());async function submit(){errEl.textContent='';const r=await window.license.submit(keyEl.value);if(!r||!r.ok){errEl.textContent=(r&&r.error)?String(r.error):'Activation failed';}}document.getElementById('activate').addEventListener('click',submit);keyEl.addEventListener('keydown',(e)=>{if(e.key==='Enter')submit();});</script></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>License Activation</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(135deg,#1f3a8a,#0f1e4d);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#fff;border-radius:16px;padding:32px;max-width:580px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.icon{width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#1f3a8a,#2d4fa0);display:grid;place-items:center;font-size:32px;margin:0 auto 16px}
+h1{text-align:center;color:#1f3a8a;font-size:24px;margin-bottom:4px}
+.sub{text-align:center;color:#d32f2f;font-size:14px;font-weight:600;margin-bottom:20px}
+.mid-label{font-size:13px;font-weight:600;color:#1f3a8a;margin-bottom:6px;display:block}
+.mid-box{background:#f8f9fa;border:2px solid rgba(31,58,138,0.2);border-radius:12px;padding:14px;font-family:monospace;font-size:13px;color:#1f3a8a;word-break:break-all;margin-bottom:8px;min-height:44px;display:flex;align-items:center}
+.copy-btn{width:100%;padding:12px;border-radius:10px;background:#1f3a8a;color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:20px}
+.copy-btn:hover{background:#2d4fa0}
+.steps{background:rgba(31,58,138,0.05);border:1px solid rgba(31,58,138,0.15);border-radius:12px;padding:14px;margin-bottom:20px}
+.steps p{font-size:13px;color:#1f3a8a;font-weight:600;margin-bottom:6px}
+.steps ol{font-size:12px;color:rgba(31,58,138,0.7);padding-left:20px}
+.steps li{margin-bottom:3px}
+.key-label{font-size:13px;font-weight:600;color:#1f3a8a;margin-bottom:6px;display:block}
+textarea{width:100%;min-height:100px;padding:12px;border-radius:10px;border:2px solid rgba(31,58,138,0.2);font-size:12px;font-family:monospace;outline:none;resize:vertical}
+textarea:focus{border-color:#1f3a8a}
+.row{display:flex;gap:10px;margin-top:14px}
+button{flex:1;padding:14px;border-radius:10px;border:none;font-size:15px;font-weight:700;cursor:pointer}
+.cancel{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+.activate{background:linear-gradient(135deg,#2e7d32,#388e3c);color:#fff}
+.error{margin-top:12px;color:#d32f2f;font-size:12px;min-height:16px;text-align:center}
+.footer{text-align:center;font-size:11px;color:rgba(31,58,138,0.5);margin-top:16px}
+</style></head><body>
+<div class="card">
+<div class="icon">🖨️</div>
+<h1>PrintShop Billing</h1>
+<div class="sub">Software Not Activated</div>
+
+<label class="mid-label">Your Machine ID:</label>
+<div class="mid-box"><span id="midText">${mid}</span></div>
+<button class="copy-btn" id="copyBtn">Copy Machine ID</button>
+
+<div class="steps">
+<p>Next Steps:</p>
+<ol>
+<li>Upar Machine ID copy karein</li>
+<li>Software provider ko WhatsApp pe bhejein</li>
+<li>Provider aapko license key dega</li>
+<li>Neeche license key paste karein</li>
+<li>"Activate" button click karein</li>
+</ol>
+</div>
+
+<label class="key-label">Paste License Key (JSON):</label>
+<textarea id="key" placeholder='{"shopName":"...","machineId":"...","validTill":"...","planMonths":12,"signature":"..."}'></textarea>
+<div class="row">
+<button class="cancel" id="cancel">Cancel</button>
+<button class="activate" id="activate">Activate Software</button>
+</div>
+<div class="error" id="err"></div>
+<div class="footer">Contact: WhatsApp +92 300 1234567</div>
+</div>
+<script>
+const keyEl=document.getElementById('key');
+const errEl=document.getElementById('err');
+const copyBtn=document.getElementById('copyBtn');
+const midText=document.getElementById('midText');
+
+copyBtn.addEventListener('click',async()=>{
+  try{
+    await navigator.clipboard.writeText(midText.textContent);
+    copyBtn.textContent='Copied!';
+    setTimeout(()=>{copyBtn.textContent='Copy Machine ID';},2000);
+  }catch{}
+});
+
+document.getElementById('cancel').addEventListener('click',()=>window.license.cancel());
+
+async function submit(){
+  errEl.textContent='';
+  const r=await window.license.submit(keyEl.value);
+  if(!r||!r.ok){errEl.textContent=(r&&r.error)?String(r.error):'Activation failed';}
+}
+document.getElementById('activate').addEventListener('click',submit);
+keyEl.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+</script></body></html>`;
     modal.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
   });
 }
