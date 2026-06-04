@@ -595,11 +595,11 @@ button{flex:1;padding:14px;border-radius:10px;border:none;font-size:15px;font-we
 <div class="steps">
 <p>Next Steps:</p>
 <ol>
-<li>Upar Machine ID copy karein</li>
-<li>Software provider ko WhatsApp pe bhejein</li>
-<li>Provider aapko license key dega</li>
-<li>Neeche license key paste karein</li>
-<li>"Activate" button click karein</li>
+<li>Copy the Machine ID above</li>
+<li>Send it to your software provider via WhatsApp</li>
+<li>Provider will give you a license key</li>
+<li>Paste the license key below</li>
+<li>Click "Activate" button</li>
 </ol>
 </div>
 
