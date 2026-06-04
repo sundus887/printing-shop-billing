@@ -331,34 +331,36 @@ async function writeConfig(cfg){
   } catch {}
 }
 function getMachineIdCached(cfg){
-  if (cfg && cfg.machineId) return cfg.machineId;
-  // Try node-machine-id with timeout protection
-  try {
-    const mod = require('node-machine-id');
-    if (mod && typeof mod.machineIdSync === 'function') {
-      try { return mod.machineIdSync(true); } catch {}
-    }
-    if (mod && typeof mod.machineId === 'function') {
-      try { return mod.machineId(true); } catch {}
-    }
-  } catch {}
-  // Fallback: Try WMIC directly
-  try {
-    const { execSync } = require('child_process');
-    const uuid = execSync('wmic csproduct get UUID', { timeout: 5000, encoding: 'utf-8' })
-      .split('\n').map(l => l.trim()).filter(l => l && l !== 'UUID')[0];
-    if (uuid && uuid.length > 5) return uuid;
-  } catch {}
-  // Fallback: Try registry
-  try {
-    const { execSync } = require('child_process');
-    const reg = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', { timeout: 5000, encoding: 'utf-8' });
-    const match = reg.match(/MachineGuid\s+REG_SZ\s+(.+)/);
-    if (match && match[1]) return match[1].trim();
-  } catch {}
-  // Final fallback: generate from hostname + timestamp
-  const os = require('os');
-  return 'MACHINE-' + (os.hostname() || 'UNKNOWN').toUpperCase().replace(/[^A-Z0-9]/g,'') + '-' + Date.now().toString(36);
+  // Always regenerate to ensure consistency with backend
+  // MUST match backend/licenseService.js getMachineId() EXACTLY
+  const osMod = require('os');
+  const { execSync } = require('child_process');
+  const cryptoMod = require('crypto');
+  const platform = osMod.platform();
+  const arch = osMod.arch();
+  const clean = (s) => String(s || '').replace(/\u0000/g, '').replace(/\r?\n/g, ' ').trim();
+  const wmicValue = (args) => {
+    try {
+      const out = execSync(`wmic ${args}`, { stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).toString('utf-8');
+      const lines = out.split(/\r?\n/).map((l) => clean(l)).filter(Boolean);
+      if (lines.length <= 1) return '';
+      return clean(lines[1]);
+    } catch { return ''; }
+  };
+  const winMachineGuid = () => {
+    try {
+      const out = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).toString('utf-8');
+      const m = out.match(/MachineGuid\s+REG_\w+\s+([A-Fa-f0-9-]+)/);
+      return clean(m && m[1]);
+    } catch { return ''; }
+  };
+  const mbSerial = (platform === 'win32') ? wmicValue('baseboard get SerialNumber') : '';
+  const cpuId = (platform === 'win32') ? wmicValue('cpu get ProcessorId') : '';
+  const osId = (platform === 'win32') ? winMachineGuid() : '';
+  const hostname = osMod.hostname();
+  const cpuModel = osMod.cpus()?.[0]?.model || '';
+  const raw = [platform, arch, mbSerial || 'NO_MB_SERIAL', cpuId || 'NO_CPU_ID', osId || 'NO_OS_ID', hostname, cpuModel].join('|');
+  return cryptoMod.createHash('sha256').update(raw, 'utf-8').digest('hex');
 }
 async function verifyLicense(key, machineId){
   if (!key) return { valid:false };
