@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-final/
+build/
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+
+# Admin private files
+admin/output/
+admin/output/*
+admin/*.enc
+admin/license-records.json
+
+# License keys
+license_private.pem
+private.pem
+keys/private*
+*.enc
+
+# Logs
+*.log
+backend-debug.log
+
+# IDE & OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Backend data (local shop data)
+backend/data/
+backend/invoices/
+
+# Backup files
+dist-backup/
+*.backup
+
+# Temporary files
+*.tmp
+*.bak

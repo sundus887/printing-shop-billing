@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Setup Shop</title>
+    <style>
+      :root { --accent:#1f3a8a; --bg:#f7f9ff; --card:#ffffff; }
+      body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:#0f172a; }
+      .wrap{ min-height:100vh; display:grid; place-items:center; padding:24px; }
+      .card{ width:100%; max-width:520px; background:var(--card); border:1px solid rgba(31,58,138,0.18); border-radius:16px; box-shadow:0 12px 40px rgba(2,6,23,0.08); padding:22px; }
+      .title{ font-size:20px; font-weight:800; color:var(--accent); margin-bottom:6px; }
+      .sub{ font-size:13px; opacity:.75; margin-bottom:18px; }
+      label{ display:block; font-size:12px; opacity:.85; margin:14px 0 6px; }
+      input[type="text"]{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(31,58,138,0.22); outline:none; }
+      input[type="file"]{ width:100%; }
+      .row{ display:flex; gap:10px; align-items:center; margin-top:14px; }
+      .btn{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(31,58,138,0.26); background:#fff; cursor:pointer; font-weight:700; }
+      .btn.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+      .err{ margin-top:12px; color:#b91c1c; font-size:12px; min-height:16px; }
+      .preview{ display:flex; align-items:center; gap:10px; margin-top:10px; }
+      .logo{ width:44px; height:44px; border-radius:10px; border:1px solid rgba(31,58,138,0.18); object-fit:contain; background:#fff; }
+      .muted{ font-size:12px; opacity:.75; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">Setup Shop</div>
+        <div class="sub">This installation belongs to one shop. Set your shop name and logo (can be changed later).</div>
+
+        <label>Shop Name</label>
+        <input id="shopName" type="text" placeholder="e.g. Elite Printing" />
+
+        <label>Shop Logo</label>
+        <input id="logo" type="file" accept="image/*" />
+        <div class="preview">
+          <img id="logoPreview" class="logo" alt="Logo preview" />
+          <div>
+            <div class="muted" id="logoPathText">No logo selected</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="saveBtn" class="btn primary" type="button">Save & Continue</button>
+        </div>
+
+        <div class="err" id="err"></div>
+      </div>
+    </div>
+
+    <script src="setupShop.js"></script>
+  </body>
+</html>
