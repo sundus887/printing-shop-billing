@@ -2,6 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 function num(n){ const v = parseFloat(n); return isNaN(v) ? 0 : v; }
 
+function normalizeColor(c) {
+  let s = String(c || '').trim();
+  if (!s) return '#111111';
+  if (!s.startsWith('#')) s = '#' + s;
+  if (/^#[0-9A-Fa-f]{3}$/.test(s)) return s;
+  if (/^#[0-9A-Fa-f]{6}$/.test(s)) return s;
+  return '#111111';
+}
+
 export default function InvoiceEditor(){
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState('');
@@ -24,13 +33,40 @@ export default function InvoiceEditor(){
   const [prevDue, setPrevDue] = useState(0);
   const [loadingDue, setLoadingDue] = useState(false);
 
-  const [shopProfile, setShopProfile] = useState({ shopName: '', logoPath: '' });
+  const [branding, setBranding] = useState({
+    shopName: '', header: '', footer: '', logoPath: '', logoSize: 90,
+    shopNameSize: 18, shopNameColor: '#111111', shopNameFont: 'Arial, sans-serif'
+  });
 
   const loadQuickItems = async () => {
     const list = await window.api.getQuickItems();
     setQuickItems(list || []);
   };
-
+  const loadBranding = async () => {
+    try {
+      const b = await window.api.brandingGet();
+      const cfg = b?.config || {};
+      let logoPath = '';
+      if (b?.hasLogo) {
+        const logoRes = await window.api.brandingGetLogo?.();
+        if (logoRes?.ok && logoRes.path) logoPath = logoRes.path;
+      }
+      const data = {
+        shopName: cfg.shopName || '',
+        header: cfg.header || '',
+        footer: cfg.footer || '',
+        logoPath,
+        logoSize: cfg.logoSize || 90,
+        shopNameSize: cfg.shopNameSize || 18,
+        shopNameColor: normalizeColor(cfg.shopNameColor || '#111111'),
+        shopNameFont: cfg.shopNameFont || 'Arial, sans-serif',
+      };
+      setBranding(data);
+      return data;
+    } catch {
+      return branding;
+    }
+  };
   const loadProducts = async () => {
     const list = await window.api.getProducts?.();
     setProducts(list || []);
@@ -47,7 +83,8 @@ export default function InvoiceEditor(){
     setPrevDue(0);
   };
 
-  const generateInvoicePDF = (meta={}) => {
+  const generateInvoicePDF = async (meta={}) => {
+    const freshBranding = await loadBranding();
     if (!customerId && customerCategory !== 'Walk-in') { alert('Please select a customer'); return; }
     if (items.length === 0) { alert('Add at least one item'); return; }
     const cust = customerCategory === 'Walk-in' ? null : customers.find(c=> String(c.id)===String(customerId));
@@ -88,22 +125,35 @@ export default function InvoiceEditor(){
     const recv = Number(received||0);
     const balance = totalBill + prev - recv;
 
-    const shopName = (shopProfile && shopProfile.shopName) ? String(shopProfile.shopName) : 'Shop';
-    const logoPath = (shopProfile && shopProfile.logoPath) ? String(shopProfile.logoPath) : '';
+    const shopName = (freshBranding.shopName || '').trim();
+    const showShopName = shopName.length > 0;
+    const logoPath = freshBranding.logoPath || '';
+    const logoSize = freshBranding.logoSize || 90;
     const logoSrc = logoPath ? ('file:///' + logoPath.replace(/\\/g,'/')) : '';
+    const headerText = freshBranding.header || '';
+    const footerText = freshBranding.footer || '';
+    const shopNameSize = freshBranding.shopNameSize || 18;
+    const shopNameColor = normalizeColor(freshBranding.shopNameColor || '#111111');
+    const shopNameFont = freshBranding.shopNameFont || 'Arial, sans-serif';
 
     const html = `<!doctype html><html><head><meta charset="utf-8"/>
     <title>Invoice - ${esc(custName)}</title>
       <style>
-        :root{ --accent:#1f3a8a; --accent-2:#2f56c0; --light:#eef2ff; --text:#0f172a; }
-        body{ font-family: Arial, sans-serif; color:var(--text); background:#fff; padding:24px; }
-        /* A4 layout: 210mm x 297mm */
-        .paper{ width:210mm; min-height:297mm; margin:0 auto; background:#ffffff; border:2px solid #e0e0e0; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.18); padding:16mm 14mm 16mm; position:relative; }
-        .banner{ background:var(--accent); color:#fff; border-radius:12mm; padding:10mm 8mm 6mm; text-align:center; }
-        .logo-space{ height:14mm; margin-bottom:4mm; display:flex; align-items:center; justify-content:center; gap:10px; }
-        .logo-img{ height:14mm; max-width:55mm; object-fit:contain; background:rgba(255,255,255,0.92); border-radius:10px; padding:4px 8px; }
-        .shop-name{ font-weight:800; letter-spacing:.6px; }
-        .title-invoice{ font-size:22pt; font-weight:800; letter-spacing:1px; }
+              :root{ --sky:#38bdf8; --black:#111; --light:#e0f2fe; --text:#0f172a; --accent:#1f3a8a; }
+               body{ font-family: Arial, sans-serif; color:var(--text); background:#fff; padding:24px; }
+               .paper{ width:210mm; min-height:297mm; margin:0 auto; background:#fff; border:1px solid #e5e7eb; padding:0 14mm 16mm; position:relative; overflow:hidden; }
+        .top-bar{ height:8px; background:var(--sky); width:100%; position:absolute; top:0; left:0; }
+        .geo-wrap{ position:relative; height:55px; margin-bottom:8px; }
+        .geo-black{ position:absolute; top:8px; left:-14mm; width:80px; height:45px; background:var(--black); clip-path:polygon(0 0, 70% 0, 100% 100%, 0 100%); }
+        .geo-sky{ position:absolute; top:8px; left:45px; width:70px; height:45px; background:var(--sky); clip-path:polygon(0 0, 100% 0, 60% 100%, 0 100%); }
+        .inv-header{ display:flex; justify-content:space-between; align-items:flex-start; padding-top:18px; margin-bottom:10px; }
+        .inv-center{ flex:1; text-align:center; padding-top:8px; }
+        .shop-name{ font-weight:800; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        .header-text{ font-size:10px; color:#555; margin-top:4px; }
+        .inv-logo-wrap{ text-align:right; min-width:140px; }
+        .inv-logo{ object-fit:contain; display:block; margin-left:auto; }
+        .logo-line{ height:3px; background:var(--sky); margin-top:6px; }
+        .inv-footer{ margin-top:12mm; padding-top:6mm; border-top:1px solid #e5e7eb; text-align:center; font-size:11px; color:#666; }
         .header-grid{ display:flex; justify-content:space-between; color:#0f172a; margin:8mm 0 6mm; gap:10mm; }
         .header-grid .left > div{ margin:1.5mm 0; }
         .header-grid .right{ text-align:right; }
@@ -136,16 +186,25 @@ export default function InvoiceEditor(){
             box-shadow:none; border-radius:0 !important; /* avoid viewer clipping */
             padding:14mm !important;
           }
-          .banner{ border-radius:0 !important; }
-        }
+  }
       </style></head><body>
       <div class="paper">
-        <div class="banner">
-          <div class="logo-space">
-            ${logoSrc ? `<img class="logo-img" src="${logoSrc}" alt="Logo" />` : ''}
-            <div class="shop-name">${esc(shopName)}</div>
+         <div class="top-bar"></div>
+        <div class="geo-wrap">
+          <div class="geo-black"></div>
+          <div class="geo-sky"></div>
+        </div>
+
+        <div class="inv-header">
+          <div style="width:140px"></div>
+          <div class="inv-center">
+          ${showShopName ? `<div class="shop-name" style="font-size:${shopNameSize}pt; color:${shopNameColor}; font-family:${shopNameFont};">${esc(shopName)}</div>` : ''}
+            ${headerText ? `<div class="header-text">${esc(headerText)}</div>` : ''}
           </div>
-          <div class="title-invoice">INVOICE</div>
+          <div class="inv-logo-wrap">
+            ${logoSrc ? `<img class="inv-logo" src="${logoSrc}" alt="Logo" style="height:${logoSize}px; max-width:${logoSize + 40}px;" />` : ''}
+            <div class="logo-line"></div>
+          </div>
         </div>
 
       <div class="header-grid">
@@ -190,8 +249,10 @@ export default function InvoiceEditor(){
             <tr><td><strong>Pending Amount</strong></td><td class="r"><strong>Rs ${balance.toFixed(2)}</strong></td></tr>
           </table>
         </div>
+            </div>
       </div>
-      </div>
+
+      ${footerText ? `<div class="inv-footer">${esc(footerText)}</div>` : ''}
 
       <div class="no-print" style="text-align:right; margin-top:12px">
         <button id="downloadBtn" type="button">Download PDF</button>
@@ -230,10 +291,8 @@ export default function InvoiceEditor(){
   useEffect(()=>{
     window.api.getCustomers().then(setCustomers);
     loadQuickItems();
-    loadProducts();  // Load products from Add Product page
-    try {
-      window.api.shopProfileGet().then((p)=>{ if (p) setShopProfile({ shopName: p.shopName||'', logoPath: p.logoPath||'' }); });
-    } catch {}
+    loadProducts();
+    loadBranding();
   }, []);
 
   // Reset the form when PDF export completes (message from preview window)
@@ -253,16 +312,11 @@ export default function InvoiceEditor(){
     if (!customerId){ setPrevDue(0); return; }
     setLoadingDue(true);
     
-    // Get customer's stored previous balance
-    const customer = customers.find(c => String(c.id) === String(customerId));
-    const storedPrevBalance = customer?.previous_balance || 0;
-    
-    // Also get ledger balance (unpaid invoices)
+    // getLedger() already includes previous_balance in total_due
     window.api.getLedger(Number(customerId))
       .then(res => {
         const ledgerDue = Math.max(0, Number(res?.total_due || 0));
-        // Total previous due = stored balance + unpaid invoices
-        setPrevDue(storedPrevBalance + ledgerDue);
+        setPrevDue(ledgerDue);
       })
       .finally(()=> setLoadingDue(false));
   }, [customerId, customers]);
@@ -356,24 +410,7 @@ export default function InvoiceEditor(){
 
   const addRow = (preset) => {
     const id = Date.now() + Math.random();
-    // If item with same name+unit exists: increment qty (for Pcs) instead of adding duplicate
-    if (preset) {
-      const idx = items.findIndex(it => (it.name||'')===preset.name && (it.unit||'')===preset.unit);
-      if (idx >= 0){
-        setItems((prev)=>{
-          const arr = [...prev];
-          const ex = { ...arr[idx] };
-          if ((ex.unit||'pcs') !== 'feet'){
-            const q = parseFloat(ex.qty||'1') || 1;
-            ex.qty = String(q + 1);
-          }
-          ex.amount = calcAmount(ex);
-          arr[idx] = ex;
-          return arr;
-        });
-        return;
-      }
-    }
+    // Always add a new row so same product can be added multiple times with different sizes
     // Create new row based on unit type
     const unit = preset?.unit || 'pcs';
     const defaultRate = preset?.sellingPrice || preset?.rate || '';  // Use selling price from products
@@ -382,8 +419,8 @@ export default function InvoiceEditor(){
           id, 
           name: preset.name, 
           unit: preset.unit, 
-          length: unit === 'feet' ? '0' : '', 
-          width: unit === 'feet' ? '0' : '', 
+          length: unit === 'feet' ? '' : '', 
+          width: unit === 'feet' ? '' : '', 
           qty: '1', 
           rate: defaultRate,  // Auto-fill rate from product selling price
           amount: 0, 
@@ -407,7 +444,8 @@ export default function InvoiceEditor(){
   const subtotal = useMemo(()=> items.reduce((s,r)=> s + num(r.amount), 0), [items]);
   const discount = 0, tax = 0;
   const total = Math.round((subtotal + tax - discount)*100)/100;
-  const pendingAfter = useMemo(()=> Math.max(0, prevDue + total - num(received)), [prevDue, total, received]);
+  const grandTotal = useMemo(()=> Math.round((subtotal + prevDue)*100)/100, [subtotal, prevDue]);
+  const pendingAfterPayment = useMemo(()=> Math.max(0, grandTotal - num(received)), [grandTotal, received]);
 
   // Items to render (no filtering now)
   const visibleItems = useMemo(()=> items, [items]);
@@ -433,7 +471,7 @@ export default function InvoiceEditor(){
       customer_id: customerCategory === 'Walk-in' ? null : parseInt(customerId,10),
       date: new Date().toISOString().slice(0,10),
       subtotal, tax, discount, total, notes,
-      status: recv >= total ? 'paid' : 'pending',
+      status: recv >= grandTotal ? 'paid' : 'pending',
       items: items.map(it=>({
         name: it.name,
         unit_type: it.unit,
@@ -458,330 +496,257 @@ export default function InvoiceEditor(){
         setPrevDue(Math.max(0, Number(led?.total_due||0)));
       } catch {}
 
-      generateInvoicePDF({ invoice_no: res.invoice_no, date: payload.date });
+      await generateInvoicePDF({ invoice_no: res.invoice_no, date: payload.date });
       // Requirement: Even if user doesn't download the PDF, reset the invoice page after generation
       resetInvoiceForm();
     }
   };
 
-  return (
-    <div className="p-5 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-2xl font-semibold section-accent">Create Invoice</div>
-          <div className="opacity-70 text-sm">Create professional invoices</div>
-        </div>
+  const renderItemDetail = (it, idx) => (
+    <div key={it.id} className="card card-red" style={{borderLeft: '4px solid #1f3a8a'}}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-semibold text-[#1f3a8a] text-sm">#{idx + 1} - {it.name || 'New Item'}</div>
+        <button type="button" className="btn btn-red text-xs px-3 py-1" onClick={()=>removeRow(it.id)}>Remove</button>
       </div>
 
-      {/* POS banner */}
-      <div className="card neon-red">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xl font-semibold">Point of Sale System</div>
-            <div className="opacity-70 text-sm">Professional Invoice & Receipt Generation with Enhanced PDF</div>
-            <div className="mt-2 flex gap-2">
-              <span className="badge badge-green">Ultimate Edition</span>
-              <span className="badge badge-blue">Premium Features</span>
+      {(it.unit||'pcs') === 'feet' ? (
+  <div className="space-y-2">
+    {/* Row 1: Length, Width, Qty */}
+    <div className="grid grid-cols-3 gap-2 items-end">
+      <div>
+        <label className="text-xs opacity-80 block mb-1">Length (ft)</label>
+        <input type="number" min="0" step="0.01" className="input text-sm w-full" value={it.length ?? ''} onChange={e=>updateRow(it.id,{length:e.target.value})} />
+      </div>
+      <div>
+        <label className="text-xs opacity-80 block mb-1">Width (ft)</label>
+        <input type="number" min="0" step="0.01" className="input text-sm w-full" value={it.width ?? ''} onChange={e=>updateRow(it.id,{width:e.target.value})} />
+      </div>
+      <div>
+        <label className="text-xs opacity-80 block mb-1">Qty</label>
+        <input type="number" min="0" step="any" className="input text-sm w-full" value={it.qty ?? ''} onChange={e=>updateRow(it.id, {qty: e.target.value})} />
+      </div>
+    </div>
+    {/* Row 2: Rate, SqFt, Amount */}
+    <div className="grid grid-cols-3 gap-2 items-end">
+      <div>
+        <label className="text-xs opacity-80 block mb-1">Rate/ft</label>
+        <input className="input text-sm w-full" value={it.rate ?? ''} onChange={e=>updateRow(it.id,{rate:e.target.value})} placeholder="Per ft" />
+      </div>
+      <div>
+        <label className="text-xs opacity-80 block mb-1">SqFt</label>
+        {(() => {
+          const l = parseFloat(it.length||0)||0;
+          const w = parseFloat(it.width||0)||0;
+          const q = Math.max(1, parseFloat(it.qty||1)||1);
+          const sqft = l>0 && w>0 ? l*w*q : 0;
+          return <div className="input text-sm text-center bg-gray-50 w-full">{sqft > 0 ? sqft.toFixed(2) : '0'}</div>;
+        })()}
+      </div>
+      <div>
+        <label className="text-xs opacity-80 block mb-1">Amount</label>
+        <div className="input text-sm text-right font-bold bg-blue-50 text-[#1f3a8a] w-full">
+          PKR {Number(it.amount||0).toFixed(2)}
+        </div>
+      </div>
+    </div>
+  </div>
+      ) : (
+        <div className="grid grid-cols-12 gap-2 items-end">
+          <div className="col-span-4">
+            <label className="text-xs opacity-80 block mb-1">Quantity (Pcs)</label>
+            <input type="number" min="0" step="any" className="input text-sm" value={it.qty ?? ''} onChange={e=>updateRow(it.id, {qty: e.target.value})} />
+          </div>
+          <div className="col-span-4">
+            <label className="text-xs opacity-80 block mb-1">Rate (per piece)</label>
+            <input className="input text-sm" value={it.rate ?? ''} onChange={e=>updateRow(it.id,{rate:e.target.value})} placeholder="Price per piece" />
+          </div>
+          <div className="col-span-4">
+            <label className="text-xs opacity-80 block mb-1">Amount</label>
+            <div className="input text-sm text-right font-bold bg-blue-50 text-[#1f3a8a]">
+              PKR {Number(it.amount||0).toFixed(2)}
             </div>
           </div>
-          <div className="text-right">
-            <div className="chip">{new Date().toLocaleDateString()}</div>
-            <div className="mt-2 chip">#POS - {new Date().toISOString().slice(2,10).replace(/-/g,'')}-{String(Math.floor(Math.random()*900)+100)}</div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col" style={{height: 'calc(100vh - 48px)'}}>
+      {/* Header */}
+      <div className="shrink-0 px-5 pt-4 pb-0">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-2xl font-semibold section-accent">Create Invoice</div>
+            <div className="opacity-70 text-sm">Create professional invoices</div>
+          </div>
+        </div>
+
+        {/* Customer Selection - compact */}
+        <div className="card card-red mb-3">
+          <div className="title mb-2">Customer Selection</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {['Walk-in','Individual','Business'].map(cat=> (
+              <button key={cat} className={`chip ${customerCategory===cat?'tab-active':''}`} onClick={()=>{ setCustomerCategory(cat); setCustomerId(''); }}>
+                {cat}
+              </button>
+            ))}
+            {customerCategory && customerCategory !== 'Walk-in' && filteredCustomers.length > 0 && (
+              <select className="input w-48" value={customerId} onChange={e=>setCustomerId(e.target.value)}>
+                {(!customerId) ? <option value="" disabled hidden>Choose customer…</option> : null}
+                {filteredCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
+            {customerCategory === 'Walk-in' && <span className="chip">Walk-in Customer</span>}
+            {customerCategory && customerCategory !== 'Walk-in' && filteredCustomers.length === 0 && (
+              <span className="text-sm opacity-70">No customers in {customerCategory}.</span>
+            )}
+            {customerId && (
+              <span className="text-sm">Previous: {loadingDue ? 'Loading…' : <span className="chip">PKR {prevDue.toFixed(2)}</span>}</span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {/* Main content (will appear first) */}
-        <div className="space-y-4">
-          <div className="card card-red">
-            <div className="title mb-3">Customer Selection</div>
-            <div className="mb-2 text-sm opacity-80">Choose Category</div>
-            <div className="flex items-center gap-2 mb-3">
-              {['Walk-in','Individual','Business'].map(cat=> (
-                <button key={cat} className={`chip ${customerCategory===cat?'tab-active':''}`} onClick={()=>{ setCustomerCategory(cat); setCustomerId(''); }}>
-                  {cat}
-                </button>
+            {/* Main area */}
+            <div className="flex-1 flex flex-col gap-3 px-5 pb-4 min-h-0">
+
+{/* Top row: Available Items (left) + Selected Items (right) */}
+<div className="flex-1 flex gap-4 min-h-0">
+
+  {/* LEFT - Available Items */}
+  <div className="flex flex-col min-h-0" style={{width: '42%', minWidth: 0}}>
+    <div className="card card-red flex-1 flex flex-col min-h-0">
+      <div className="shrink-0 mb-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="title">Available Items</div>
+          <button className="btn text-sm" onClick={()=>setShowQuickForm(v=>!v)}>
+            {showQuickForm ? 'Close' : '+ Quick Add'}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <input className="input flex-1" placeholder="Search items..." value={qSearch} onChange={e=>setQSearch(e.target.value)} />
+          <select className="input w-28" value={qFilterCat} onChange={e=>setQFilterCat(e.target.value)}>
+            {categories.map(c=> <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="text-xs opacity-60 mt-1">{filteredQuickItems.length} item(s)</div>
+      </div>
+
+      {showQuickForm && (
+        <div className="shrink-0 list-item list-item-red mb-3">
+          <div className="grid grid-cols-2 gap-2 items-end">
+            <div className="col-span-2">
+              <label className="text-xs opacity-80">Name</label>
+              <input className="input" value={qi.name} onChange={e=>setQi({...qi, name:e.target.value})} onKeyDown={handleQuickFormKey} placeholder="Product name" />
+            </div>
+            <div>
+              <label className="text-xs opacity-80">Unit</label>
+              <select className="input" value={qi.unit} onChange={e=>setQi({...qi, unit:e.target.value})}>
+                <option value="pcs">Pcs</option>
+                <option value="feet">Feet</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn text-xs" onClick={()=>setQi({ name:'', unit:'pcs', note:'' })}>Reset</button>
+              <button className="btn btn-red text-xs" onClick={async ()=>{
+                if(!qi.name) return alert('Name is required');
+                await window.api.addQuickItem({ name: qi.name, unit: qi.unit, rate: 0, note: qi.note||qi.name });
+                setQi({ name:'', unit:'pcs', note:'' });
+                setShowQuickForm(false);
+                loadQuickItems();
+              }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto pr-1">
+        {filteredQuickItems.length === 0 ? (
+          <div className="text-sm opacity-70">No items. Add products or click "+ Quick Add".</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {filteredQuickItems.map((q)=> (
+              <div key={`${q._source}-${q.id}`} className="list-item list-item-red cursor-pointer hover:bg-[rgba(31,58,138,0.06)] transition-colors" onClick={()=>addRow(q)}>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="font-medium text-[#1f3a8a] text-sm truncate">{q.name}</div>
+                  {q._source === 'quick' && (
+                    <button className="text-xs opacity-50 hover:opacity-100 shrink-0" onClick={(e)=>{e.stopPropagation(); if (!confirm(`Delete "${q.name}"?`)) return; window.api.removeQuickItem(q.id); loadQuickItems();}}>&times;</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+
+  {/* RIGHT - Selected Items */}
+  <div className="flex flex-col min-h-0" style={{width: '58%', minWidth: 0}}>
+    <div className="card card-red flex-1 flex flex-col min-h-0">
+      {items.length === 0 ? (
+        <div className="text-center py-10 opacity-60 text-sm flex-1 flex flex-col items-center justify-center">
+          <div className="text-3xl mb-2">🧾</div>
+          Click items from left to add them here
+        </div>
+      ) : (
+        <>
+          <div className="shrink-0 mb-3">
+            <div className="font-semibold text-[#1f3a8a] mb-2">Selected Items ({items.length})</div>
+            <div className="flex flex-wrap gap-1">
+              {visibleItems.map((it)=> (
+                <span key={it.id} className="chip text-xs flex items-center gap-1">
+                  {it.name}
+                  <button type="button" className="opacity-60 hover:opacity-100" onClick={()=>removeRow(it.id)}>&times;</button>
+                </span>
               ))}
             </div>
-            {customerCategory ? (
-              customerCategory === 'Walk-in' ? (
-                <div className="text-sm opacity-80">Creating invoice for <span className="chip">Walk-in</span>. No selection needed.</div>
-              ) : filteredCustomers.length > 0 ? (
-                <>
-                  <label className="text-sm opacity-80 mb-1 block">Select Customer ({customerCategory})</label>
-                  <select className="input" value={customerId} onChange={e=>setCustomerId(e.target.value)}>
-                    {(!customerId) ? <option value="" disabled hidden>Choose a customer…</option> : null}
-                    {filteredCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {customerId ? (
-                    <div className="text-sm mt-2">
-                      Previous Pending Amount: {loadingDue ? 'Loading…' : <span className="chip">PKR {prevDue.toFixed(2)}</span>}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="text-sm opacity-70">No customers in {customerCategory}. Add one from the Add Customer page.</div>
-              )
-            ) : (
-              <div className="text-sm opacity-70">Please select a category to list customers.</div>
-            )}
           </div>
-
-          <div className="card card-red">
-            <div className="mb-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div className="title shrink-0">Quick Add Items</div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                  <select className="input w-32 md:w-40" value={qFilterCat} onChange={e=>setQFilterCat(e.target.value)}>
-                    {categories.map(c=> <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <button className="btn w-full md:w-auto" onClick={()=>setShowQuickForm(v=>!v)}>
-                    {showQuickForm ? 'Close' : '+ Add Quick Product'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {showQuickForm && (
-              <div className="list-item list-item-red mb-3">
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
-                  <div className="md:col-span-2">
-                    <label className="text-sm opacity-80">Product Name</label>
-                    <input className="input" value={qi.name} onChange={e=>setQi({...qi, name:e.target.value})} onKeyDown={handleQuickFormKey} placeholder="e.g. A4 Flyers (500)" />
-                  </div>
-                  <div>
-                    <label className="text-sm opacity-80">Unit</label>
-                    <select className="input" value={qi.unit} onChange={e=>setQi({...qi, unit:e.target.value})} onKeyDown={handleQuickFormKey}>
-                      <option value="pcs">Pcs</option>
-                      <option value="feet">Feet</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-sm opacity-80">Note</label>
-                    <input className="input" value={qi.note} onChange={e=>setQi({...qi, note:e.target.value})} onKeyDown={handleQuickFormKey} placeholder="Type or auto-filled from name" />
-                  </div>
-                  <div className="md:col-span-1 flex gap-2">
-                    <button className="btn" onClick={()=>{ setQi({ name:'', unit:'pcs', note:'' }); }}>Reset</button>
-                    <button className="btn btn-red" onClick={async ()=>{
-                      if(!qi.name) return alert('Name is required');
-                      await window.api.addQuickItem({ name: qi.name, unit: qi.unit, rate: 0, note: qi.note||qi.name });
-                      setQi({ name:'', unit:'pcs', note:'' });
-                      setShowQuickForm(false);
-                      loadQuickItems();
-                    }}>Save</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Available list moved to Items section below */}
+          <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+            {visibleItems.map((it, idx)=> renderItemDetail(it, idx))}
           </div>
+        </>
+      )}
+    </div>
+  </div>
+</div>
 
-          <div className="card card-red">
-            {/* Available Items (All products) */}
-            <div className="mb-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div className="title">Items</div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                  <input className="input w-full md:w-56" placeholder="Search available items" value={qSearch} onChange={e=>setQSearch(e.target.value)} />
-                  <select className="input w-32 md:w-40" value={qFilterCat} onChange={e=>setQFilterCat(e.target.value)}>
-                    {categories.map(c=> <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
+{/* BOTTOM - Billing Summary + Payment */}
+<div className="shrink-0 grid grid-cols-2 gap-3">
+  <div className="card card-red">
+    <div className="title mb-3">Billing Summary</div>
+    <div className="flex items-center justify-between text-sm mb-1">
+      <span className="opacity-70">Subtotal</span>
+      <span className="font-semibold">PKR {subtotal.toFixed(2)}</span>
+    </div>
+    <div className="flex items-center justify-between text-sm mb-1">
+      <span className="opacity-70">Previous Pending</span>
+      <span className="font-semibold">PKR {prevDue.toFixed(2)}</span>
+    </div>
+    <div className="flex items-center justify-between text-lg font-bold text-[#1f3a8a] border-t pt-2 mt-2">
+      <span>Total</span>
+      <span>PKR {grandTotal.toFixed(2)}</span>
+    </div>
+  </div>
 
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-medium">Available Items</div>
-              <div className="text-sm opacity-80">{filteredQuickItems.length} item(s)</div>
-            </div>
-            {filteredQuickItems.length === 0 ? (
-              <div className="text-sm opacity-70">No items yet. Add products from "Add Product" page or click "+ Add Quick Product".</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                {filteredQuickItems.map((q)=> (
-                  <div key={`${q._source}-${q.id}`} className="list-item list-item-red cursor-pointer hover:bg-[rgba(31,58,138,0.03)]" onClick={()=>addRow(q)}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {q.name}
-                          {q._source === 'product' && (
-                            <span className="chip chip-blue text-[10px]">Product</span>
-                          )}
-                          {q._source === 'quick' && (
-                            <span className="chip text-[10px]">Quick Add</span>
-                          )}
-                        </div>
-                        <div className="text-xs opacity-70">
-                          {q.unit === 'feet' ? 'Feet' : 'Pcs'} • {String((q.note && q.note.trim()) || q.category || '').slice(0,60)}
-                          {q._source === 'product' && q.sellingPrice > 0 && (
-                            <span className="ml-2 font-semibold">• PKR {Number(q.sellingPrice).toLocaleString()}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2" onClick={(e)=>e.stopPropagation()}>
-                        <div className={`chip ${q._source === 'product' ? 'chip-blue' : 'chip-red'}`}>
-                          {q._source === 'product' ? 'In Stock' : 'Available'}
-                        </div>
-                        {q._source === 'quick' && (
-                          <button className="btn" onClick={async ()=>{
-                            if (!confirm(`Delete item "${q.name}" from catalog?`)) return;
-                            await window.api.removeQuickItem(q.id);
-                            loadQuickItems();
-                          }}>Delete</button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Invoice Items (selected from Available Items) */}
-            {items.length > 0 && (
-              <>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="font-medium">Invoice Items</div>
-                </div>
-                <div className="space-y-3">
-                  {visibleItems.map((it)=> (
-                    <div key={it.id} className="list-item list-item-red">
-                      <div className="grid grid-cols-1 gap-3">
-                        {/* Row 1: Name • Unit • Qty */}
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                          <div className="md:col-span-6">
-                            <label className="text-sm opacity-80">Item Name</label>
-                            <input className="input" value={it.name} onChange={e=>updateRow(it.id,{name:e.target.value})} />
-                            {it.note ? <div className="text-[11px] opacity-70 mt-1">{it.note}</div> : null}
-                          </div>
-                          <div className="md:col-span-3">
-                            <label className="text-sm opacity-80">Unit</label>
-                            <select className="input" value={it.unit} onChange={e=>{
-                              const u = e.target.value;
-                              const patch = { unit: u };
-                              if (u === 'feet'){
-                                if (!it.length) patch.length = '1';
-                                if (!it.width) patch.width = '1';
-                              } else {
-                                if (!it.qty) patch.qty = '1';
-                              }
-                              updateRow(it.id, patch);
-                            }}>
-                              <option value="pcs">Pcs</option>
-                              <option value="feet">Feet</option>
-                            </select>
-                          </div>
-                          <div className="md:col-span-3">
-                            <label className="text-sm opacity-80">Qty</label>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              step="any"
-                              className="input" 
-                              value={it.qty ?? ''} 
-                              onChange={e => updateRow(it.id, {qty: e.target.value})} 
-                              placeholder="1"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Row 2: Length • Width • Rate • Amount/Remove */}
-                        {(it.unit||'pcs') === 'feet' && (
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div className="md:col-span-3">
-                              <label className="text-sm opacity-80">Length</label>
-                              <input type="number" min="0" step="0.01" className="input" value={it.length ?? ''} onChange={e=>updateRow(it.id,{length:e.target.value})} />
-                            </div>
-                            <div className="md:col-span-3">
-                              <label className="text-sm opacity-80">Width</label>
-                              <input type="number" min="0" step="0.01" className="input" value={it.width ?? ''} onChange={e=>updateRow(it.id,{width:e.target.value})} />
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="text-sm opacity-80">Rate</label>
-                              <input className="input" value={it.rate ?? ''} onChange={e=>updateRow(it.id,{rate:e.target.value})} placeholder="Enter price" />
-                              {(() => {
-                                const l = parseFloat(it.length||0)||0;
-                                const w = parseFloat(it.width||0)||0;
-                                const q = Math.max(1, parseFloat(it.qty||1)||1);
-                                const amt = parseFloat(it.amount||0)||0;
-                                const sqft = l>0 && w>0 ? l*w*q : 0;
-                                const per = sqft>0 && amt>0 ? (amt / sqft) : 0;
-                                return (sqft>0 && amt>0) ? (
-                                  <div className="text-[11px] opacity-70 mt-1">Per SqFt: PKR {per.toFixed(2)}</div>
-                                ) : null;
-                              })()}
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="text-sm opacity-80">Amount</label>
-                              <div className="input text-right font-semibold" style={{backgroundColor: '#f8f9fa'}}>
-                                PKR {it.amount?.toFixed ? it.amount.toFixed(2) : Number(it.amount||0).toFixed(2)}
-                              </div>
-                            </div>
-                            <div className="md:col-span-1 flex items-end">
-                              <button type="button" className="btn btn-red w-full" onClick={()=>removeRow(it.id)}>Remove</button>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* For pcs-based products: Show Rate and Amount only (no length/width) */}
-                        {(it.unit||'pcs') !== 'feet' && (
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div className="md:col-span-5">
-                              <label className="text-sm opacity-80">Rate (per piece)</label>
-                              <input className="input" value={it.rate ?? ''} onChange={e=>updateRow(it.id,{rate:e.target.value})} placeholder="Enter price per piece" />
-                              {(() => {
-                                const q = Math.max(1, parseFloat(it.qty||1)||1);
-                                const rt = parseFloat(it.rate||0)||0;
-                                return (q>0 && rt>0) ? (
-                                  <div className="text-[11px] opacity-70 mt-1">Total: {q} × PKR {rt.toFixed(2)} = PKR {(q*rt).toLocaleString()}</div>
-                                ) : null;
-                              })()}
-                            </div>
-                            <div className="md:col-span-5">
-                              <label className="text-sm opacity-80">Amount</label>
-                              <div className="input text-right font-semibold" style={{backgroundColor: '#f8f9fa'}}>
-                                PKR {it.amount?.toFixed ? it.amount.toFixed(2) : Number(it.amount||0).toFixed(2)}
-                              </div>
-                            </div>
-                            <div className="md:col-span-2 flex items-end">
-                              <button type="button" className="btn btn-red w-full" onClick={()=>removeRow(it.id)}>Remove</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Summary & Payment (moved below) */}
-        <div className="space-y-4">
-          <div className="card card-red">
-            <div className="title mb-2">Order Summary</div>
-            <div className="text-sm opacity-70 mb-3">Subtotal</div>
-            <div className="title">PKR {subtotal.toFixed(2)}</div>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm opacity-70">Total Amount</div>
-              <div className="chip">PKR {total.toFixed(2)}</div>
-            </div>
-          </div>
-
-          <div className="card card-red">
-            <div className="title mb-2">Payment Processing</div>
-            <label className="text-sm opacity-80">Amount Received (PKR)</label>
-            <input className="input" value={received} onChange={e=>setReceived(e.target.value)} />
-            <label className="text-sm opacity-80 mt-3">Additional Notes</label>
-            <textarea className="input textarea" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Any special instructions or notes..."></textarea>
-            <button className="btn btn-red mt-4 w-full" onClick={saveInvoice}>Generate Invoice</button>
-          </div>
-
+  <div className="card card-red">
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <label className="text-xs opacity-80">Amount Received (PKR)</label>
+        <input className="input text-sm" value={received} onChange={e=>setReceived(e.target.value)} />
+      </div>
+      <div>
+        <label className="text-xs opacity-80">Pending After Payment</label>
+        <div className="input text-sm text-right font-bold" style={{backgroundColor: '#fef2f2', color: '#dc2626'}}>
+          PKR {pendingAfterPayment.toFixed(2)}
         </div>
       </div>
+    </div>
+    <button className="btn btn-red mt-3 w-full text-base" onClick={saveInvoice}>Generate Invoice</button>
+  </div>
+</div>
+</div>
     </div>
   );
 }

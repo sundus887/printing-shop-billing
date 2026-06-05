@@ -1,10 +1,34 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+
+const FONT_OPTIONS = [
+  { value: 'Arial', label: 'Arial' },
+  { value: 'Georgia', label: 'Georgia' },
+  { value: 'Times New Roman', label: 'Times New Roman' },
+  { value: 'Verdana', label: 'Verdana' },
+  { value: 'Tahoma', label: 'Tahoma' },
+  { value: 'Courier New', label: 'Courier New' },
+  { value: 'Impact', label: 'Impact' },
+  { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+]
+
+function normalizeColor(c) {
+  let s = String(c || '').trim()
+  if (!s) return '#111111'
+  if (!s.startsWith('#')) s = '#' + s
+  if (/^#[0-9A-Fa-f]{3}$/.test(s)) return s
+  if (/^#[0-9A-Fa-f]{6}$/.test(s)) return s
+  return '#111111'
+}
 
 export default function Branding(){
   const [info, setInfo] = useState({ shopId: '', hasLogo:false, hasTemplateHtml:false, hasTemplateJson:false, config:{} })
   const [header, setHeader] = useState('')
   const [footer, setFooter] = useState('')
   const [shopName, setShopName] = useState('')
+  const [logoSize, setLogoSize] = useState(90)
+  const [shopNameSize, setShopNameSize] = useState(18)
+  const [shopNameColor, setShopNameColor] = useState('#111111')
+ const [shopNameFont, setShopNameFont] = useState('Arial')
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [logoPreview, setLogoPreview] = useState('')
@@ -18,7 +42,11 @@ export default function Branding(){
       const cfg = x.config || {}
       setHeader(cfg.header || '')
       setFooter(cfg.footer || '')
+      setLogoSize(cfg.logoSize || 90)
       setShopName(cfg.shopName || '')
+      setShopNameSize(cfg.shopNameSize || 18)
+      setShopNameColor(normalizeColor(cfg.shopNameColor || '#111111'))
+      setShopNameFont(cfg.shopNameFont || 'Arial')
       // Load logo if exists
       if (x.hasLogo) {
         try {
@@ -53,7 +81,13 @@ export default function Branding(){
   const saveConfig = async ()=>{
     setSaving(true)
     try {
-      const cfg = { header, footer, shopName }
+      const cfg = {
+        header, footer, shopName,
+        logoSize: Number(logoSize) || 90,
+        shopNameSize: Number(shopNameSize) || 18,
+        shopNameColor: normalizeColor(shopNameColor),
+        shopNameFont: shopNameFont || 'Arial',
+      }
       await window.api.brandingSaveConfig(cfg)
       showToast('Settings saved!')
     } catch(err) {
@@ -100,6 +134,21 @@ export default function Branding(){
             onChange={uploadLogo}
             className="text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border file:border-[rgba(31,58,138,0.25)] file:bg-[rgba(31,58,138,0.06)] file:text-[#1f3a8a] file:font-medium file:cursor-pointer"
           />
+                    <div className="mt-4">
+            <label className="text-sm opacity-80 block mb-1">
+              Logo Size on Invoice: {logoSize}px
+            </label>
+            <input
+              type="range"
+              min="50"
+              max="150"
+              step="5"
+              value={logoSize}
+              onChange={e => setLogoSize(Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="text-xs opacity-60 mt-1">Slide to make logo bigger or smaller</div>
+          </div>
         </div>
 
         {/* Shop Info */}
@@ -107,13 +156,70 @@ export default function Branding(){
           <div className="title mb-4">Shop Information</div>
           <div className="space-y-3">
             <div>
-              <label className="text-sm opacity-80 block mb-1">Shop Name (shown on invoices)</label>
+            <label className="text-sm opacity-80 block mb-1">Shop Name (leave blank to hide on invoice)</label>
               <input
                 value={shopName}
                 onChange={e => setShopName(e.target.value)}
                 className="input w-full"
                 placeholder="e.g. Elite Printing Press"
               />
+            </div>
+            <div>
+              <label className="text-sm opacity-80 block mb-1">
+                Shop Name Size on Invoice: {shopNameSize}pt
+              </label>
+              <input
+                type="range"
+                min="12"
+                max="36"
+                step="1"
+                value={shopNameSize}
+                onChange={e => setShopNameSize(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-sm opacity-80 block mb-1">Shop Name Font</label>
+              <select
+                className="input w-full"
+                value={shopNameFont}
+                onChange={e => setShopNameFont(e.target.value)}
+              >
+                {FONT_OPTIONS.map(f => (
+    <option 
+      key={f.value} 
+      value={f.value}
+      style={{ fontFamily: f.value }}
+    >
+      {f.label}
+    </option>
+  ))}
+</select>
+            </div>
+            <div>
+              <label className="text-sm opacity-80 block mb-1">Shop Name Color</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={normalizeColor(shopNameColor)}
+                  onChange={e => setShopNameColor(e.target.value)}
+                  className="w-12 h-10 rounded cursor-pointer border border-[rgba(31,58,138,0.25)]"
+                />
+                <input
+                  type="text"
+                  value={shopNameColor}
+                  onChange={e => setShopNameColor(e.target.value)}
+                  onBlur={e => setShopNameColor(normalizeColor(e.target.value))}
+                  className="input flex-1"
+                  placeholder="#111111"
+                />
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: normalizeColor(shopNameColor), fontFamily: shopNameFont }}
+                >
+                  Preview
+                </span>
+              </div>
             </div>
             <div>
               <label className="text-sm opacity-80 block mb-1">Shop ID</label>

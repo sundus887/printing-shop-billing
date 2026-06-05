@@ -371,14 +371,14 @@ export default function App() {
 
   // STATE 2 & 3: VALID or EXPIRED LICENSE - Show main app with appropriate overlays
   return (
-    <div className="min-h-screen flex bg-[#ffffff] text-[#1f3a8a]">
+    <div className="h-screen flex bg-[#ffffff] text-[#1f3a8a] overflow-hidden">
       <Sidebar expired={expired} onNavBlocked={onNavBlocked} />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 overflow-auto" style={{padding: '24px'}}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
-          <Route path="/invoice" element={<InvoiceEditor />} />
+          <Route path="/invoice" element={<div className="h-full"><InvoiceEditor /></div>} />
           <Route path="/products" element={<Products />} />
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/ledger" element={<Ledger />} />
