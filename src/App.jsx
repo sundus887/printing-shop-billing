@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { Link, Route, Routes, Navigate, useLocation } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
@@ -12,6 +12,7 @@ import Products from './pages/Products'
 import DataMigration from './pages/DataMigration'
 import ActivationScreen from './pages/ActivationScreen'
 import Branding from './pages/Branding'
+import InvoiceList from './pages/InvoiceList'
 
 // Theme-aligned minimal SVG icons (use currentColor for navy)
 function IconDashboard(){
@@ -122,13 +123,15 @@ function Sidebar({ expired, onNavBlocked }){
     { path:'/credit', label:'Credit Book', icon:<IconCard/> },
     { path:'/migration', label:'Data Migration', icon:<IconTransfer/> },
     { path:'/branding', label:'Shop Branding', icon:<IconBranding/> },
-     { path:'/machine-id',  label:'Machine ID',     icon:<IconKey/>       },
+     { path:'/machine-id',  label:'Machine ID',     icon:<IconKey/> },
+      { path:'/invoice-list', label:'Invoice List', icon:<IconReceipt/> },
+           
   ];
   return (
-    <aside className="w-72 p-4 border-r border-[rgba(31,58,138,0.12)] bg-[linear-gradient(180deg,#ffffff,#f6f8ff)] text-[#1f3a8a]">
+    <aside className="w-72 p-4 border-r border-[rgba(31,58,138,0.12)] bg-[linear-gradient(180deg,#ffffff,#f6f8ff)] text-[#1f3a8a] h-screen overflow-y-auto flex-shrink-0">
       {/* Brand */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 rounded-xl grid place-items-center text-2xl bg-[rgba(31,58,138,0.08)] border border-[rgba(31,58,138,0.20)] shadow-[0_0_16px_rgba(31,58,138,0.18)]">🖨️</div>
+        <div className="w-12 h-12 rounded-xl grid place-items-center bg-[rgba(31,58,138,0.08)] border border-[rgba(31,58,138,0.20)] shadow-[0_0_16px_rgba(31,58,138,0.18)]"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1f3a8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div>
         <div>
           <div className="text-lg font-semibold">PrintShop Billing</div>
           <div className="text-[11px] opacity-70">Ultimate Desktop Edition</div>
@@ -387,6 +390,7 @@ export default function App() {
           <Route path="/migration" element={<DataMigration />} />
           <Route path="/branding" element={<Branding />} />
           <Route path="/machine-id" element={<MachineId />} />
+          <Route path="/invoice-list" element={<InvoiceList />} />
         </Routes>
       </main>
 
@@ -394,7 +398,7 @@ export default function App() {
       {showExpired && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md text-[#1f3a8a] border border-[rgba(31,58,138,0.15)]">
-            <div className="text-lg font-semibold mb-2">⚠️ Subscription Expired</div>
+            <div className="text-lg font-semibold mb-2">âš ï¸ Subscription Expired</div>
             <div className="mb-4">
               {expiredDateText
                 ? `Your subscription expired on ${expiredDateText}. Please renew to continue.`
@@ -446,3 +450,7 @@ export default function App() {
     </div>
   );
 }
+
+
+
+

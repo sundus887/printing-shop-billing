@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const crypto = require('crypto');
@@ -275,6 +275,18 @@ module.exports = {
       data.invoice_items.push({ id: iid, invoice_id: id, name: it.name||'', unit_type: it.unit_type||'pcs', length: it.length??null, width: it.width??null, qty: it.qty??null, unit_rate: it.unit_rate||0, line_total: it.line_total||0, note: it.note||'' });
     }
     return ensureKey(path.dirname(storePath)).then(keys=>{ saveEncrypted(keys); return { id, invoice_no }; });
+  },
+  updateInvoice(id, inv){
+    const idx = data.invoices.findIndex(i=> i.id === Number(id));
+    if (idx < 0) return Promise.resolve({ success: false, error: 'Not found' });
+    const old = data.invoices[idx];
+    data.invoices[idx] = { ...old, customer_id: inv.customer_id, subtotal: inv.subtotal||0, tax: inv.tax||0, discount: inv.discount||0, total: inv.total||0, status: inv.status||old.status, notes: inv.notes||'' };
+    data.invoice_items = data.invoice_items.filter(it=> it.invoice_id !== Number(id));
+    for (const it of inv.items||[]){
+      const iid = nextId(data.invoice_items);
+      data.invoice_items.push({ id: iid, invoice_id: Number(id), name: it.name||'', unit_type: it.unit_type||'pcs', length: it.length??null, width: it.width??null, qty: it.qty??null, unit_rate: it.unit_rate||0, line_total: it.line_total||0, note: it.note||'' });
+    }
+    return ensureKey(path.dirname(storePath)).then(keys=>{ saveEncrypted(keys); return { success: true }; });
   },
   getAllInvoices(){
     return [...data.invoices]
@@ -562,3 +574,4 @@ module.exports = {
     }
   },
 };
+

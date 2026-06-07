@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+﻿const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // Dashboard
@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   createInvoice: (invoice) => ipcRenderer.invoke('invoices:create', invoice),
   getInvoices: () => ipcRenderer.invoke('invoices:getAll'),
   getInvoice: (id) => ipcRenderer.invoke('invoices:get', id),
+  updateInvoice: (id, payload) => ipcRenderer.invoke('invoices:update', id, payload),
 
   // Expenses
   addExpense: (exp) => ipcRenderer.invoke('expenses:add', exp),
@@ -70,6 +71,7 @@ contextBridge.exposeInMainWorld('api', {
   brandingSaveTemplate: (payload) => ipcRenderer.invoke('branding:saveTemplate', payload),
   brandingSaveConfig: (cfg) => ipcRenderer.invoke('branding:saveConfig', cfg),
   brandingGetLogo: () => ipcRenderer.invoke('branding:getLogo'),
+  brandingGetLogoBase64: () => ipcRenderer.invoke('branding:getLogoBase64'),
   brandingBuildPreview: (sample) => ipcRenderer.invoke('branding:buildPreview', sample),
 
   shopProfileGet: () => ipcRenderer.invoke('shopProfile:get'),
@@ -78,3 +80,5 @@ contextBridge.exposeInMainWorld('api', {
   getMachineId: () => ipcRenderer.invoke('system:getMachineId'),
 }
 );
+
+

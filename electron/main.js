@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 let autoUpdater; try { ({ autoUpdater } = require('electron-updater')); } catch {}
 const { spawn } = require('child_process');
 
@@ -449,7 +449,7 @@ function startBackend() {
     backend.stderr.on('data', (data) => { log(`[BACKEND STDERR] ${data.toString().trim()}`); });
     backend.on('exit', (code, signal) => {
       log(`[BACKEND EXIT] code=${code} signal=${signal}`);
-      if (code !== 0) { log('Backend crashed — check STDERR above'); }
+      if (code !== 0) { log('Backend crashed â€” check STDERR above'); }
     });
     backend.on('error', (err) => { log(`[BACKEND SPAWN ERROR] ${err.message}`); });
     backendProcess = backend;
@@ -584,7 +584,7 @@ button{flex:1;padding:14px;border-radius:10px;border:none;font-size:15px;font-we
 .footer{text-align:center;font-size:11px;color:rgba(31,58,138,0.5);margin-top:16px}
 </style></head><body>
 <div class="card">
-<div class="icon">🖨️</div>
+<div class="icon">ðŸ–¨ï¸</div>
 <h1>PrintShop Billing</h1>
 <div class="sub">Software Not Activated</div>
 
@@ -640,7 +640,7 @@ keyEl.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preven
   });
 }
 
-// ─── CREATE WINDOW ────────────────────────────────────────────────────────────
+// â”€â”€â”€ CREATE WINDOW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function createWindow() {
   const logPath = path.join(app.getPath('userData'), 'backend-debug.log');
   fs.appendFileSync(logPath, `[WINDOW CREATE] Starting window creation\n`);
@@ -693,7 +693,7 @@ function createWindow() {
   }
 }
 
-// ─── IPC HANDLERS (outside createWindow) ─────────────────────────────────────
+// â”€â”€â”€ IPC HANDLERS (outside createWindow) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // License IPC
 ipcMain.handle('license:get', async () => {
@@ -795,6 +795,16 @@ ipcMain.handle('branding:saveConfig', async (e, cfgObj)=>{
   const p = getBrandingPaths(sid);
   try { fs.writeFileSync(p.config, JSON.stringify(cfgObj||{}, null, 2), 'utf-8'); return { success:true }; }
   catch (err) { return { error: String(err&&err.message||err) }; }
+});
+ipcMain.handle('branding:getLogoBase64', async () => {
+  try {
+    const brandingDir = path.join(app.getPath('userData'), 'shops', DB.getShopId(), 'branding');
+    const logoPath = path.join(brandingDir, 'logo.png');
+    if (!require('fs').existsSync(logoPath)) return { ok: false };
+    const data = require('fs').readFileSync(logoPath);
+    const base64 = data.toString('base64');
+    return { ok: true, base64: 'data:image/png;base64,' + base64 };
+  } catch { return { ok: false }; }
 });
 ipcMain.handle('branding:getLogo', async ()=>{
   await ensureNotLocked();
@@ -911,6 +921,7 @@ ipcMain.handle('customers:remove', async (e, id) => { await ensureNotLocked(); r
 // Invoices IPC
 ipcMain.handle('invoices:create', async (e, inv) => { await ensureNotLocked(); return DB.createInvoice(inv); });
 ipcMain.handle('invoices:getAll', async () => { await ensureNotLocked(); return DB.getAllInvoices(); });
+ipcMain.handle('invoices:update', async (e, id, payload) => { await ensureNotLocked(); return DB.updateInvoice(id, payload); });
 ipcMain.handle('invoices:get', async (e, id) => { await ensureNotLocked(); return DB.getInvoiceById(id); });
 
 // Expenses IPC
@@ -1053,7 +1064,7 @@ ipcMain.handle('store:clear', async () => {
   } catch (err) { return { error: String(err && err.message || err) }; }
 });
 
-// ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
+// â”€â”€â”€ APP LIFECYCLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.whenReady().then(async () => {
   console.log("=== Electron App Starting ===");
   console.log("App packaged:", app.isPackaged);
@@ -1193,3 +1204,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   stopBackend();
 });
+
+
+
