@@ -1000,7 +1000,9 @@ ipcMain.handle('pdf:save', async (e, payload) => {
       }
     }
     
-    await bw.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(finalHtml));
+    const tmpFile = path.join(require('os').tmpdir(), `invoice-${Date.now()}.html`);
+fs.writeFileSync(tmpFile, finalHtml, 'utf-8');
+await bw.loadFile(tmpFile);
     try { 
       await bw.webContents.executeJavaScript(`new Promise(resolve => { 
         const done = () => setTimeout(resolve, 200); 
