@@ -291,25 +291,15 @@ const itemRefs = useRef({});
     const shopNameColor = normalizeColor(freshBranding.shopNameColor || "#111111");
     const shopNameFont = freshBranding.shopNameFont || "Arial, sans-serif";
     const html = "<!doctype html><html><head><meta charset='utf-8'/><title>Invoice</title><style>:root{--sky:#38bdf8;--black:#111;--light:#e0f2fe;--text:#0f172a;--accent:#1f3a8a;}body{font-family:Arial,sans-serif;color:var(--text);background:#fff;padding:24px;}" + (selectedPageSize==="A3"?".paper{width:297mm;min-height:420mm;":selectedPageSize==="A5"?".paper{width:148mm;min-height:210mm;":selectedPageSize==="Legal"?".paper{width:216mm;min-height:356mm;":selectedPageSize==="Letter"?".paper{width:216mm;min-height:279mm;":".paper{width:210mm;min-height:297mm;") + "margin:0 auto;background:#fff;border:1px solid #e5e7eb;padding:0 14mm 16mm;position:relative;overflow:hidden;}.top-bar{height:8px;background:var(--sky);width:100%;position:absolute;top:0;left:0;}.inv-header{display:flex;justify-content:space-between;align-items:flex-start;padding-top:18px;margin-bottom:10px;}.inv-center{flex:1;text-align:center;padding-top:8px;}.shop-name{font-weight:800;}.header-text{font-size:10px;color:#555;margin-top:4px;}.inv-logo-wrap{text-align:right;min-width:140px;}.inv-logo{object-fit:contain;display:block;margin-left:auto;}.header-grid{display:flex;justify-content:space-between;color:#0f172a;margin:8mm 0 6mm;gap:10mm;}.header-grid .left>div{margin:1.5mm 0;}.header-grid .right{text-align:right;}.badge{padding:4px 8px;border:1px solid rgba(31,58,138,.35);border-radius:8px;font-weight:600;background:var(--light);color:var(--accent);}.panel{background:#fff;border-radius:6mm;padding:6mm;margin:8mm 0 10mm;border:1px solid #e0e0e0;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #d0d0d0;padding:8px;font-size:12px;}th{background:var(--light);color:#0f1e44;}.r{text-align:right;}.c{text-align:center;}.sub{font-size:10px;opacity:.7;margin-top:2px;}.pname{font-weight:700;}.summary{margin-top:8mm;display:flex;justify-content:flex-end;}.box{width:360px;border:1px solid #d0d0d0;border-radius:10px;overflow:hidden;background:#f8f9fa;}.box table{border-collapse:collapse;width:100%;}.box td{border:1px solid #d0d0d0;padding:8px;font-size:12px;}.inv-footer{margin-top:12mm;padding-top:6mm;border-top:1px solid #e5e7eb;text-align:center;font-size:11px;color:#666;}@page{size:" + selectedPageSize + ";margin:0;}@media print{body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.paper{margin:0!important;padding:14mm!important;}}</style></head><body><div class='paper'><div class='top-bar'></div><div class='inv-header'><div style='width:140px'></div><div class='inv-center'>" + (shopName ? "<div class='shop-name' style='font-size:" + shopNameSize + "pt;color:" + shopNameColor + ";font-family:" + shopNameFont + ";'>" + esc(shopName) + "</div>" : "") + (headerText ? "<div class='header-text'>" + esc(headerText) + "</div>" : "") + "</div><div class='inv-logo-wrap'>" + (logoSrc ? "<img class='inv-logo' src='" + logoSrc + "' style='height:" + logoSize + "px;max-width:" + (logoSize+40) + "px;'/>" : "") + "</div></div><div class='header-grid'><div class='left'><div><strong>Invoice #:</strong> <span class='badge'>" + esc(invNo) + "</span></div><div><strong>Customer:</strong> " + esc(custName) + "</div><div><strong>Mobile:</strong> " + esc(custPhone||"-") + "</div></div><div class='right'><div><strong>Date</strong> " + esc(invDate) + "</div></div></div><div class='panel'><table><thead><tr><th style='width:50px' class='c'>SNo.</th><th>Particulars</th><th style='width:120px' class='c'>Size</th><th style='width:60px' class='r'>Qty</th><th style='width:80px' class='r'>SqFt</th><th style='width:80px' class='r'>Rate</th><th style='width:100px' class='r'>Amount</th></tr></thead><tbody>" + rows + "</tbody></table><div style='margin-top:8px;font-weight:600;color:#0f1e44;'>Total Items: " + items.length + "</div>" + (notes ? "<div style='margin-top:8px;font-size:12px'><strong>Notes:</strong> " + esc(notes) + "</div>" : "") + "<div class='summary'><div class='box'><table><tr><td><strong>Total Bill:</strong></td><td class='r'>Rs " + totalBill.toFixed(2) + "</td></tr><tr><td>Previous Balance</td><td class='r'>Rs " + prev.toFixed(2) + "</td></tr><tr><td>Total Received</td><td class='r'>Rs " + recv.toFixed(2) + "</td></tr><tr><td><strong>Pending</strong></td><td class='r'><strong>Rs " + balance.toFixed(2) + "</strong></td></tr></table></div></div></div>" + (footerText ? "<div class='inv-footer'>" + esc(footerText) + "</div>" : "") + "<div class='no-print' style='text-align:right;margin-top:12px'><button id='downloadBtn' type='button'>Download PDF</button></div></div></body></html>";
-    const win = window.open("", "_blank");
-    if (!win) { alert("Pop-up blocked."); return; }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => {
-      try {
-        const btn = win.document.getElementById("downloadBtn");
-        if (btn) btn.addEventListener("click", async (e) => {
-          e.preventDefault();
-          try {
-            const res = await window.api.savePDF(html, (invNo || "invoice") + ".pdf");
-            if (res?.error) alert("Failed: " + res.error);
-            if (!res?.canceled) { try { win.close(); } catch {} }
-          } catch { alert("Failed to save PDF"); }
-        });
-        win.focus();
-      } catch {}
-    }, 200);
+   // Directly save PDF without opening preview window
+try {
+  const res = await window.api.savePDF(html, (invNo || "invoice") + ".pdf");
+  if (res?.error) alert("Failed to save PDF: " + res.error);
+} catch(err) {
+  alert("Failed to save PDF");
+}
+return;
+   
   };
 
   const saveInvoice = async () => {
